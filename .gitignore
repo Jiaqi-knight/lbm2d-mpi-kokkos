@@ -1,0 +1,11 @@
+*.o
+*.tmp
+*.a
+*.host
+*.cuda
+lbm2d/KokkosCore_config.h
+*.bin
+*.swp
+*.pydevproject
+*.project
+cavity2d/re25000_2048x2048
