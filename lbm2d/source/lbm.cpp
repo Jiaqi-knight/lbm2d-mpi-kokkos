@@ -1,7 +1,6 @@
 #include <mpi.h>
 #include <ostream>
 #include <stdlib.h>
-#include <memory>
 
 #include "functors.h"
 #include "params.h"
@@ -27,7 +26,7 @@ int main(int narg, char *arg[]) {
 
   MPI_Request req[4];
 
-  std::unique_ptr < Output > o(new Output());
+  Output o;
 
   {
     // params
@@ -48,7 +47,6 @@ int main(int narg, char *arg[]) {
     int ny = tmp;
 
     if (params.rank == 0) {
-
       ny = params.ny - (tmp - 2) * (params.num_proc - 1);
     }
 
@@ -59,10 +57,10 @@ int main(int narg, char *arg[]) {
     DistributionField fB("fB", ny, nx);
     DistributionField fC = fA;
 
-    BoundaryDistributionField fT_send("fT_send", nx);
-    BoundaryDistributionField fT_recv("fT_recv", nx);
-    BoundaryDistributionField fB_send("fB_send", nx);
-    BoundaryDistributionField fB_recv("fB_recv", nx);
+    HaloDistField fT_send("fT_send", nx);
+    HaloDistField fT_recv("fT_recv", nx);
+    HaloDistField fB_send("fB_send", nx);
+    HaloDistField fB_recv("fB_recv", nx);
 
     ScalarField rho("rho", ny, nx);
     ScalarField u("u", ny, nx);
@@ -73,20 +71,14 @@ int main(int narg, char *arg[]) {
     ScalarField::HostMirror h_v = Kokkos::create_mirror_view(v);
     ScalarField::HostMirror h_rho = Kokkos::create_mirror_view(rho);
 
-    // create xfer mirrors
-    BoundaryDistributionField::HostMirror h_fT_send = Kokkos::create_mirror_view(fT_send);
-    BoundaryDistributionField::HostMirror h_fT_recv = Kokkos::create_mirror_view(fT_recv);
-    BoundaryDistributionField::HostMirror h_fB_send = Kokkos::create_mirror_view(fB_send);
-    BoundaryDistributionField::HostMirror h_fB_recv = Kokkos::create_mirror_view(fB_recv);
-
     // initialize values
     Kokkos::parallel_for("load_state", range_2d( { 0, 0 }, { fA.extent(0), fA.extent(1) }), load_state(fA, fB, u, v, rho));
 
     // write to output file
-    o->write_view("output/u", h_u, params);
-    o->write_view("output/v", h_v, params);
-    o->write_view("output/rho", h_rho, params);
-    o->frame += 1;
+    o.write_view("output/u", h_u, params);
+    o.write_view("output/v", h_v, params);
+    o.write_view("output/rho", h_rho, params);
+    o.frame += 1;
 
     printf("Solving lid driven cavity (rank = %i of %i, Re = %.2e, tau = %.2e, domain [%i x %i] , RAM (MB) = %.1f)...\n", params.rank + 1, params.num_proc, params.re, params.tau,
         nx - 2, ny - 2, (2. * 9. + 3.) * 8. * double(ny - 2) * double (nx-2) / (1024. * 1024.));
@@ -133,104 +125,97 @@ int main(int narg, char *arg[]) {
 //          fB_send(j, 2) = fB(0, j, 8);
 //        }
 
-        // if MPI w/ GPUS
-        Kokkos::parallel_for("populate_send_buffers",range_1d(1, nx - 1), populate_send_buffers(fB, fT_send, fB_send, ny);
-
-        // copy "send" buffer from device to host
-        // Kokkos::deep_copy(h_fT_send, fT_send); // should not need with Cuda-aware MPI
-        // Kokkos::deep_copy(h_fB_send, fB_send);
+        // MPI w/ GPUS
+        Kokkos::parallel_for("populate_send_buffers",range_1d(1, nx - 1), populate_send_buffers(fB, fT_send, fB_send, ny));
 
         // receive from slab below
-        //MPI_Irecv(h_fB_recv.data(), buff_size, MPI_DOUBLE, rank_below, 0, MPI_COMM_WORLD, &req[1]); // 5,2,6
         MPI_Irecv(fB_recv.data(), buff_size, MPI_DOUBLE, rank_below, 0, MPI_COMM_WORLD, &req[1]); // 5,2,6
 
         // receive from slab above
-        //MPI_Irecv(h_fT_recv.data(), buff_size, MPI_DOUBLE, rank_above, 0, MPI_COMM_WORLD, &req[3]); // 7, 4, 8
+        MPI_Irecv(fT_recv.data(), buff_size, MPI_DOUBLE, rank_above, 0, MPI_COMM_WORLD, &req[3]); // 7, 4, 8
 
         // send to slab above
-        //MPI_Isend(h_fT_send.data(), buff_size, MPI_DOUBLE, rank_above, 0, MPI_COMM_WORLD, &req[0]);	// 5,2,6
+        MPI_Isend(fT_send.data(), buff_size, MPI_DOUBLE, rank_above, 0, MPI_COMM_WORLD, &req[0]);   // 5,2,6
 
         // send to slab below
-        //MPI_Isend(h_fB_send.data(), buff_size, MPI_DOUBLE, rank_below, 0, MPI_COMM_WORLD, &req[2]); // 7, 4, 8
+        MPI_Isend(fB_send.data(), buff_size, MPI_DOUBLE, rank_below, 0, MPI_COMM_WORLD, &req[2]); // 7, 4, 8
 
         MPI_Waitall(4, req, statuses);
 
-        // copy "recv" buffer from host to device
-        Kokkos::deep_copy(fT_recv, h_fT_recv);
-        Kokkos::deep_copy(fB_recv, h_fB_recv);
+        Kokkos::parallel_for("load_from_recv_buffers",range_1d(1, nx - 1), load_from_recv_buffers(fB, fT_recv, fB_recv, ny, nx, params.rank, params.num_proc));
 
-        // use recv buffer data to set distributions for slabs 1 ...N-2
-        for (int j = 1; j < (nx - 1); ++j) {
-
-          if (params.rank > 0 and params.rank < (params.num_proc - 1)) {
-
-            if (j == 1) {
-
-              fB(ny - 2, j, 7) = fT_recv(j, 0);
-              fB(ny - 2, j, 4) = fT_recv(j, 1);
-
-              fB(1, j, 2) = fB_recv(j, 1);
-              fB(1, j, 6) = fB_recv(j, 2);
-
-            } else if (j == nx - 2) {
-
-              fB(ny - 2, j, 4) = fT_recv(j, 1);
-              fB(ny - 2, j, 8) = fT_recv(j, 2);
-
-              fB(1, j, 5) = fB_recv(j, 0);
-              fB(1, j, 2) = fB_recv(j, 1);
-
-            } else {
-
-              fB(ny - 2, j, 7) = fT_recv(j, 0);
-              fB(ny - 2, j, 4) = fT_recv(j, 1);
-              fB(ny - 2, j, 8) = fT_recv(j, 2);
-
-              fB(1, j, 5) = fB_recv(j, 0);
-              fB(1, j, 2) = fB_recv(j, 1);
-              fB(1, j, 6) = fB_recv(j, 2);
-            }
-
-          } else if (params.rank == 0) {
-
-            if (j == 1) {
-
-              fB(ny - 2, j, 7) = fT_recv(j, 0);
-              fB(ny - 2, j, 4) = fT_recv(j, 1);
-
-            } else if (j == (nx - 2)) {
-
-              fB(ny - 2, j, 4) = fT_recv(j, 1);
-              fB(ny - 2, j, 8) = fT_recv(j, 2);
-
-            } else {
-
-              fB(ny - 2, j, 7) = fT_recv(j, 0);
-              fB(ny - 2, j, 4) = fT_recv(j, 1);
-              fB(ny - 2, j, 8) = fT_recv(j, 2);
-
-            }
-
-          } else if (params.rank == (params.num_proc - 1)) {
-
-            if (j == 1) {
-
-              fB(1, j, 2) = fB_recv(j, 1);
-              fB(1, j, 6) = fB_recv(j, 2);
-
-            } else if (j == (nx - 2)) {
-
-              fB(1, j, 5) = fB_recv(j, 0);
-              fB(1, j, 2) = fB_recv(j, 1);
-
-            } else {
-
-              fB(1, j, 5) = fB_recv(j, 0);
-              fB(1, j, 2) = fB_recv(j, 1);
-              fB(1, j, 6) = fB_recv(j, 2);
-            }
-          }
-        }
+//        // use recv buffer data to set distributions for slabs 1 ...N-2
+//        for (int j = 1; j < (nx - 1); ++j) {
+//
+//          if (params.rank > 0 and params.rank < (params.num_proc - 1)) {
+//
+//            if (j == 1) {
+//
+//              fB(ny - 2, j, 7) = fT_recv(j, 0);
+//              fB(ny - 2, j, 4) = fT_recv(j, 1);
+//
+//              fB(1, j, 2) = fB_recv(j, 1);
+//              fB(1, j, 6) = fB_recv(j, 2);
+//
+//            } else if (j == nx - 2) {
+//
+//              fB(ny - 2, j, 4) = fT_recv(j, 1);
+//              fB(ny - 2, j, 8) = fT_recv(j, 2);
+//
+//              fB(1, j, 5) = fB_recv(j, 0);
+//              fB(1, j, 2) = fB_recv(j, 1);
+//
+//            } else {
+//
+//              fB(ny - 2, j, 7) = fT_recv(j, 0);
+//              fB(ny - 2, j, 4) = fT_recv(j, 1);
+//              fB(ny - 2, j, 8) = fT_recv(j, 2);
+//
+//              fB(1, j, 5) = fB_recv(j, 0);
+//              fB(1, j, 2) = fB_recv(j, 1);
+//              fB(1, j, 6) = fB_recv(j, 2);
+//            }
+//
+//          } else if (params.rank == 0) {
+//
+//            if (j == 1) {
+//
+//              fB(ny - 2, j, 7) = fT_recv(j, 0);
+//              fB(ny - 2, j, 4) = fT_recv(j, 1);
+//
+//            } else if (j == (nx - 2)) {
+//
+//              fB(ny - 2, j, 4) = fT_recv(j, 1);
+//              fB(ny - 2, j, 8) = fT_recv(j, 2);
+//
+//            } else {
+//
+//              fB(ny - 2, j, 7) = fT_recv(j, 0);
+//              fB(ny - 2, j, 4) = fT_recv(j, 1);
+//              fB(ny - 2, j, 8) = fT_recv(j, 2);
+//
+//            }
+//
+//          } else if (params.rank == (params.num_proc - 1)) {
+//
+//            if (j == 1) {
+//
+//              fB(1, j, 2) = fB_recv(j, 1);
+//              fB(1, j, 6) = fB_recv(j, 2);
+//
+//            } else if (j == (nx - 2)) {
+//
+//              fB(1, j, 5) = fB_recv(j, 0);
+//              fB(1, j, 2) = fB_recv(j, 1);
+//
+//            } else {
+//
+//              fB(1, j, 5) = fB_recv(j, 0);
+//              fB(1, j, 2) = fB_recv(j, 1);
+//              fB(1, j, 6) = fB_recv(j, 2);
+//            }
+//          }
+//        }
       }
 
       time_comm += timer2.seconds();
@@ -271,11 +256,11 @@ int main(int narg, char *arg[]) {
         Kokkos::deep_copy(h_rho, rho);
 
         // write to output file
-        o->write_view("output/u", h_u, params);
-        o->write_view("output/v", h_v, params);
-        o->write_view("output/rho", h_rho, params);
+        o.write_view("output/u", h_u, params);
+        o.write_view("output/v", h_v, params);
+        o.write_view("output/rho", h_rho, params);
 
-        o->frame += 1;
+        o.frame += 1;
       }
 
       step += 1;

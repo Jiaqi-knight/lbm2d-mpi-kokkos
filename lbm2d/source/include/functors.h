@@ -171,14 +171,102 @@ struct bb_north {
   }
 };
 
+struct load_from_recv_buffers {
+
+  const int ny;
+  const int nx;
+  const int rank;
+  const int num_proc;
+
+  const DistributionField fB;
+  const HaloDistField fT_recv;
+  const HaloDistField fB_recv;
+
+  load_from_recv_buffers(DistributionField fB, HaloDistField fT_recv, HaloDistField fB_recv, const int ny, const int nx, const int rank, const int num_proc) :
+    fB(fB), fT_recv(fT_recv), fB_recv(fB_recv), ny(ny), nx(nx), rank(rank), num_proc(num_proc){
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const int j) const {
+    if (rank > 0 and rank < (num_proc - 1)) {
+
+      if (j == 1) {
+
+        fB(ny - 2, j, 7) = fT_recv(j, 0);
+        fB(ny - 2, j, 4) = fT_recv(j, 1);
+
+        fB(1, j, 2) = fB_recv(j, 1);
+        fB(1, j, 6) = fB_recv(j, 2);
+
+      } else if (j == nx - 2) {
+
+        fB(ny - 2, j, 4) = fT_recv(j, 1);
+        fB(ny - 2, j, 8) = fT_recv(j, 2);
+
+        fB(1, j, 5) = fB_recv(j, 0);
+        fB(1, j, 2) = fB_recv(j, 1);
+
+      } else {
+
+        fB(ny - 2, j, 7) = fT_recv(j, 0);
+        fB(ny - 2, j, 4) = fT_recv(j, 1);
+        fB(ny - 2, j, 8) = fT_recv(j, 2);
+
+        fB(1, j, 5) = fB_recv(j, 0);
+        fB(1, j, 2) = fB_recv(j, 1);
+        fB(1, j, 6) = fB_recv(j, 2);
+      }
+
+    } else if (rank == 0) {
+
+      if (j == 1) {
+
+        fB(ny - 2, j, 7) = fT_recv(j, 0);
+        fB(ny - 2, j, 4) = fT_recv(j, 1);
+
+      } else if (j == (nx - 2)) {
+
+        fB(ny - 2, j, 4) = fT_recv(j, 1);
+        fB(ny - 2, j, 8) = fT_recv(j, 2);
+
+      } else {
+
+        fB(ny - 2, j, 7) = fT_recv(j, 0);
+        fB(ny - 2, j, 4) = fT_recv(j, 1);
+        fB(ny - 2, j, 8) = fT_recv(j, 2);
+
+      }
+
+    } else if (rank == (num_proc - 1)) {
+
+      if (j == 1) {
+
+        fB(1, j, 2) = fB_recv(j, 1);
+        fB(1, j, 6) = fB_recv(j, 2);
+
+      } else if (j == (nx - 2)) {
+
+        fB(1, j, 5) = fB_recv(j, 0);
+        fB(1, j, 2) = fB_recv(j, 1);
+
+      } else {
+
+        fB(1, j, 5) = fB_recv(j, 0);
+        fB(1, j, 2) = fB_recv(j, 1);
+        fB(1, j, 6) = fB_recv(j, 2);
+      }
+    }
+  }
+};
+
 struct populate_send_buffers {
 
   const int ny;
   const DistributionField fB;
-  const BoundaryDistributionField fT_send;
-  const BoundaryDistributionField fB_send;
+  const HaloDistField fT_send;
+  const HaloDistField fB_send;
 
-  populate_send_buffers(DistributionField fB, BoundaryDistributionField fT_send, BoundaryDistributionField fB_send, const int ny) :
+  populate_send_buffers(DistributionField fB, HaloDistField fT_send, HaloDistField fB_send, int ny) :
       fB(fB), fT_send(fT_send), fB_send(fB_send), ny(ny) {
   }
 

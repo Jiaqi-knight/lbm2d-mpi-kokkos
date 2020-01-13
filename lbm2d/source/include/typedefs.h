@@ -6,7 +6,7 @@
 
 typedef double Double;
 
-typedef Kokkos::View<Double*[3]> BoundaryDistributionField;
+typedef Kokkos::View<Double*[3]> HaloDistField;
 typedef Kokkos::View<Double**> ScalarField;
 typedef Kokkos::View<Double**[9]> DistributionField;
 typedef Kokkos::MDRangePolicy< Kokkos::Rank<2>> range_2d;

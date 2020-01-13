@@ -74,6 +74,8 @@ ffmpeg -v 0 -i img_%03d.png -vf palettegen -y palette.png
 ffmpeg -v 0 -framerate 10 -loop 0 -i img_%03d.png -i palette.png -lavfi paletteuse -y out.gif
 ```
 
+https://devblogs.nvidia.com/introduction-cuda-aware-mpi/
+
 ## Performance 
 
 ### Kokkos profiling

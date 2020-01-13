@@ -2,22 +2,23 @@
 
 [ ! -d "output" ] && mkdir output
 app=../lbm2d/release/lbm.host
-nx=4096;
-ny=4096;
+nx=512;
+ny=512;
 re=100;
 tol=.00001;
-max_steps=200;
-output_rate=200;
+max_steps=100000;
+output_rate=10000;
 
 # pure OpenMP
-np=1;
-nt=2;
+#np=1;
+#nt=2;
 #export GOMP_CPU_AFFINITY="0 8 1 9 2 10 3 11 4 12 5 13 6 14 7 15 16 24 17 25 18 26 19 27 20 28 21 29 22 30 23 31"
 #export OMP_DISPLAY_ENV=true
 
-mpirun -N $np -bind-to none -x OMP_NUM_THREADS=$nt -x OMP_PROC_BIND=spread -x OMP_PLACES=threads $app $nx $ny $re $tol $max_steps $output_rate
+
+#mpirun -N $np -bind-to none -x OMP_NUM_THREADS=$nt -x OMP_PROC_BIND=spread -x OMP_PLACES=threads $app $nx $ny $re $tol $max_steps $output_rate
 
 # hybrid MPI/OpenMP
-#np=2;
-#nt=16;
-#mpirun -N $np -bind-to none -x OMP_NUM_THREADS=$nt $app $nx $ny $re $tol $max_steps $output_rate
+np=2;
+nt=8;
+mpirun -N $np -bind-to none -x OMP_NUM_THREADS=$nt $app $nx $ny $re $tol $max_steps $output_rate
