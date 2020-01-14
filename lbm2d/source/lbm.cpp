@@ -81,7 +81,7 @@ int main(int narg, char *arg[]) {
     o.frame += 1;
 
     printf("Solving lid driven cavity (rank = %i of %i, Re = %.2e, tau = %.2e, domain [%i x %i] , RAM (MB) = %.1f)...\n", params.rank + 1, params.num_proc, params.re, params.tau,
-        nx - 2, ny - 2, (2. * 9. + 3.) * 8. * double(ny - 2) * double (nx-2) / (1024. * 1024.));
+        ny - 2, nx - 2, (2. * 9. + 3.) * 8. * double(ny - 2) * double (nx-2) / (1024. * 1024.));
 
     Kokkos::Timer timer;
 
@@ -142,7 +142,15 @@ int main(int narg, char *arg[]) {
 
         MPI_Waitall(4, req, statuses);
 
-        Kokkos::parallel_for("load_from_recv_buffers",range_1d(1, nx - 1), load_from_recv_buffers(fB, fT_recv, fB_recv, ny, nx, params.rank, params.num_proc));
+        if (params.rank > 0 and params.rank < (params.num_proc - 1)) {
+          Kokkos::parallel_for("load_from_recv_buffers_rank_k",range_1d(1, nx - 1), load_from_recv_buffers_rank_k(fB, fT_recv, fB_recv, ny, nx));
+        } else if (params.rank == 0) {
+          Kokkos::parallel_for("load_from_recv_buffers_rank_zero",range_1d(1, nx - 1), load_from_recv_buffers_rank_zero(fB, fT_recv, fB_recv, ny, nx));
+        } else if (params.rank == (params.num_proc - 1)) {
+          Kokkos::parallel_for("load_from_recv_buffers_rank_nminus1",range_1d(1, nx - 1), load_from_recv_buffers_rank_nminus1(fB, fT_recv, fB_recv, nx));
+        }
+
+//        Kokkos::parallel_for("load_from_recv_buffers",range_1d(1, nx - 1), load_from_recv_buffers(fB, fT_recv, fB_recv, ny, nx, params.rank, params.num_proc));
 
 //        // use recv buffer data to set distributions for slabs 1 ...N-2
 //        for (int j = 1; j < (nx - 1); ++j) {
