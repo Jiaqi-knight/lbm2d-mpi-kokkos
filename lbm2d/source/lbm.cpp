@@ -111,21 +111,8 @@ int main(int narg, char *arg[]) {
           rank_below = params.num_proc - 1;
         }
 
-        // populate xfer buffers
 
-        // if MPI w/ CPUs, don't launch any OpenMP threads
-//        for (int j = 1; j < (nx - 1); ++j) {
-//
-//          fT_send(j, 0) = fB(ny - 1, j, 5);
-//          fT_send(j, 1) = fB(ny - 1, j, 2);
-//          fT_send(j, 2) = fB(ny - 1, j, 6);
-//
-//          fB_send(j, 0) = fB(0, j, 7);
-//          fB_send(j, 1) = fB(0, j, 4);
-//          fB_send(j, 2) = fB(0, j, 8);
-//        }
-
-        // MPI w/ GPUS
+        // TODO if MPI w/ CPUs, don't launch any OpenMP threads
         Kokkos::parallel_for("populate_send_buffers",range_1d(1, nx - 1), populate_send_buffers(fB, fT_send, fB_send, ny));
 
         // receive from slab below
@@ -142,6 +129,7 @@ int main(int narg, char *arg[]) {
 
         MPI_Waitall(4, req, statuses);
 
+        // TODO if MPI w/ CPUs dont launch any OpenMP threads
         if (params.rank > 0 and params.rank < (params.num_proc - 1)) {
           Kokkos::parallel_for("load_from_recv_buffers_rank_k",range_1d(1, nx - 1), load_from_recv_buffers_rank_k(fB, fT_recv, fB_recv, ny, nx));
         } else if (params.rank == 0) {
@@ -149,81 +137,6 @@ int main(int narg, char *arg[]) {
         } else if (params.rank == (params.num_proc - 1)) {
           Kokkos::parallel_for("load_from_recv_buffers_rank_nminus1",range_1d(1, nx - 1), load_from_recv_buffers_rank_nminus1(fB, fT_recv, fB_recv, nx));
         }
-
-//        Kokkos::parallel_for("load_from_recv_buffers",range_1d(1, nx - 1), load_from_recv_buffers(fB, fT_recv, fB_recv, ny, nx, params.rank, params.num_proc));
-
-//        // use recv buffer data to set distributions for slabs 1 ...N-2
-//        for (int j = 1; j < (nx - 1); ++j) {
-//
-//          if (params.rank > 0 and params.rank < (params.num_proc - 1)) {
-//
-//            if (j == 1) {
-//
-//              fB(ny - 2, j, 7) = fT_recv(j, 0);
-//              fB(ny - 2, j, 4) = fT_recv(j, 1);
-//
-//              fB(1, j, 2) = fB_recv(j, 1);
-//              fB(1, j, 6) = fB_recv(j, 2);
-//
-//            } else if (j == nx - 2) {
-//
-//              fB(ny - 2, j, 4) = fT_recv(j, 1);
-//              fB(ny - 2, j, 8) = fT_recv(j, 2);
-//
-//              fB(1, j, 5) = fB_recv(j, 0);
-//              fB(1, j, 2) = fB_recv(j, 1);
-//
-//            } else {
-//
-//              fB(ny - 2, j, 7) = fT_recv(j, 0);
-//              fB(ny - 2, j, 4) = fT_recv(j, 1);
-//              fB(ny - 2, j, 8) = fT_recv(j, 2);
-//
-//              fB(1, j, 5) = fB_recv(j, 0);
-//              fB(1, j, 2) = fB_recv(j, 1);
-//              fB(1, j, 6) = fB_recv(j, 2);
-//            }
-//
-//          } else if (params.rank == 0) {
-//
-//            if (j == 1) {
-//
-//              fB(ny - 2, j, 7) = fT_recv(j, 0);
-//              fB(ny - 2, j, 4) = fT_recv(j, 1);
-//
-//            } else if (j == (nx - 2)) {
-//
-//              fB(ny - 2, j, 4) = fT_recv(j, 1);
-//              fB(ny - 2, j, 8) = fT_recv(j, 2);
-//
-//            } else {
-//
-//              fB(ny - 2, j, 7) = fT_recv(j, 0);
-//              fB(ny - 2, j, 4) = fT_recv(j, 1);
-//              fB(ny - 2, j, 8) = fT_recv(j, 2);
-//
-//            }
-//
-//          } else if (params.rank == (params.num_proc - 1)) {
-//
-//            if (j == 1) {
-//
-//              fB(1, j, 2) = fB_recv(j, 1);
-//              fB(1, j, 6) = fB_recv(j, 2);
-//
-//            } else if (j == (nx - 2)) {
-//
-//              fB(1, j, 5) = fB_recv(j, 0);
-//              fB(1, j, 2) = fB_recv(j, 1);
-//
-//            } else {
-//
-//              fB(1, j, 5) = fB_recv(j, 0);
-//              fB(1, j, 2) = fB_recv(j, 1);
-//              fB(1, j, 6) = fB_recv(j, 2);
-//            }
-//          }
-//        }
       }
 
       time_comm += timer2.seconds();

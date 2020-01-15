@@ -73,15 +73,98 @@ Use the `ffmpeg` library to generate the GIF animation
 ffmpeg -v 0 -i img_%03d.png -vf palettegen -y palette.png
 ffmpeg -v 0 -framerate 10 -loop 0 -i img_%03d.png -i palette.png -lavfi paletteuse -y out.gif
 ```
+## Cuda-aware MPI
+
+An distributed GPU program will require device-to-host and host-to-device memory copies in order to avoid invalid memory accesses. However, if multiple GPUs are on a single compute node, then a Cuda-aware MPI implementation will allow you to bypass the memory copies with a cheaper direct Peer-to-Peer (P2P) transfer. This not only results in a higher bandwidth but also reduces code complexity and results in cleaner code. For more details, see the articles below
 
 https://devblogs.nvidia.com/introduction-cuda-aware-mpi/
 
+https://kose-y.github.io/blog/2017/12/installing-cuda-aware-mpi/
+nvidia-smi
+
 ## Performance 
 
-### Kokkos profiling
+### Kokkos profiling tools
+
+Kokkos provides profiling tools that can be useful to get a quick estimate of performance critical regions. The wiki is found here
+
+https://github.com/kokkos/kokkos-tools/wiki
+
+Clone the `kokkos-tools` repository to the `Kokkos` directory and build thee space-time-stack profiling tool
+
+```
+git clone https://github.com/kokkos/kokkos-tools.git
+cd kokkos-tools/src/tools/space-time-stack
+make
+export KOKKOS_PROFILE_LIBRARY=$PWD/kp_space_time_stack.so
+```
+
+Setting `KOKKOS_PROFILE_LIBRARY` environment variable to point to `kp_space_time_stack.so` will generate a Kokkos profiling report when your code exits. An example profiling report is shown below. We see the time spent per Kokkos parallel region as well as the memory-allocation breakdown. For the `512x512` domain tested here, roughly 87% of our time is spent in colliding and streaming. 
+
+```
+BEGIN KOKKOS PROFILING REPORT:
+TOTAL TIME: 10.337 seconds
+TOP-DOWN TIME TREE:
+<average time> <percent of total time> <percent time in Kokkos> <percent MPI imbalance> 
+<remainder> <kernels per second> <number of calls> <name> [type]
+=================== 
+|-> 9.03e+00 sec 87.3% 100.0% 0.0% ------ 20000 collision_streaming [for]
+|-> 3.66e-01 sec 3.5% 100.0% 0.0% ------ 20000 bb_west [for]
+|-> 2.54e-01 sec 2.5% 100.0% 0.0% ------ 20000 bb_east [for]
+|-> 2.45e-01 sec 2.4% 100.0% 0.0% ------ 20000 bb_north [for]
+|-> 2.35e-01 sec 2.3% 100.0% 0.0% ------ 20000 bb_south [for]
+
+BOTTOM-UP TIME TREE:
+<average time> <percent of total time> <percent time in Kokkos> <percent MPI imbalance> 
+<number of calls> <name> [type]
+=================== 
+|-> 9.03e+00 sec 87.3% 100.0% 0.0% ------ 20000 collision_streaming [for]
+|-> 3.66e-01 sec 3.5% 100.0% 0.0% ------ 20000 bb_west [for]
+|-> 2.54e-01 sec 2.5% 100.0% 0.0% ------ 20000 bb_east [for]
+|-> 2.45e-01 sec 2.4% 100.0% 0.0% ------ 20000 bb_north [for]
+|-> 2.35e-01 sec 2.3% 100.0% 0.0% ------ 20000 bb_south [for]
+
+KOKKOS HOST SPACE:
+=================== 
+MAX MEMORY ALLOCATED: 43056.0 kB
+MPI RANK WITH MAX MEMORY: 0
+ALLOCATIONS AT TIME OF HIGH WATER MARK:
+  42.8% fB
+  42.8% fA
+  4.8% rho
+  4.8% u
+  4.8% v
+
+KOKKOS CUDA SPACE:
+=================== 
+MAX MEMORY ALLOCATED: 0.0 kB
+MPI RANK WITH MAX MEMORY: 0
+ALLOCATIONS AT TIME OF HIGH WATER MARK:
+
+Host process high water mark memory consumption: 55016 kB
+  Max: 55016, Min: 55016, Ave: 55016 kB
+
+END KOKKOS PROFILING REPORT.
+
+```
 
 ### Shared Memory
 
+| N    | GTX Titan X | ½ Tesla K80 | Tesla V100 | E5\-2670\-32T | E5\-2670\-16T | E5\-2670\-8T | E5\-2670\-4T | E5\-2670\-2T | E5\-2670\-1T |
+|------|-------------|-------------|------------|---------------|---------------|--------------|--------------|--------------|--------------|
+| 64   | 0           | 94\.4       |            | 50\.3         | 78\.6         | 77\.8        | 58\.8        | 40\.9        | 32\.2        |
+| 128  | 354         | 274         |            | 176           | 194           | 134          | 79\.5        | 44\.7        | 33\.3        |
+| 256  | 985         | 564\.5      |            | 371           | 288           | 167          | 88\.6        | 46\.1        | 30\.9        |
+| 512  | 1360        | 788\.6      |            | 523           | 309           | 165          | 85\.4        | 41\.6        | 29\.9        |
+| 1024 | 1360        | 885\.8      |            | 310           | 279           | 152          | 77\.8        | 39\.5        | 28\.6        |
+| 2048 | 1380        | 884\.6      |            | 309           | 282           | 153          | 76\.3        | 38\.4        | 26\.8        |
+| 4096 | 1340        | 856\.8      |            | 216           | 268           | 147          | 73\.5        | 37\.2        | 26           |
+| 8192 | 1290        | 648\.2      |            | 143           | 186           | 128          | 65\.1        | 35\.3        | 25\.6        |
+
 ### Distributed Memory
 
+### Cost
+How much would the above pretty animation cost you if you didn't have free access to a GPU? Well, a p2.xlarge Amazon EC2 instance will give you access to half the theoretical bandwidth of single K80 GPU (i.e., `~240 GB/s`) for `$0.9/hr` on demand pricing. Using a `2048x2048` lattice, testing shows the code ran on a p2.xlarge instance can update approximately `885e6` lattice sites per second i.e., 25 million LBM steps would cost you around `$30` and ~1.4 days of compute time.
+
+Is there an Amazon EC2 GPU instance is the best bang for the buck for our code?
 
