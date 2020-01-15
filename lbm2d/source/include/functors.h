@@ -404,8 +404,8 @@ struct is_steady_state {
     Double vmom_B = v(i, j) * rho_B;
 
     // convergence criteria
-    int converged_momu = fabs(umom_B - umom_A) < max(tol * fabs(umom_A), 1e-6);
-    int converged_momv = fabs(vmom_B - vmom_A) < max(tol * fabs(vmom_A), 1e-6);
+    int converged_momu = fabs(umom_B - umom_A) < max(tol * fabs(umom_A), 1e-12);
+    int converged_momv = fabs(vmom_B - vmom_A) < max(tol * fabs(vmom_A), 1e-12);
 
 //    if (!converged_momu or !converged_momv){
 //      std::stringstream ss; ss << i << "," << j << "\n";
