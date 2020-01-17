@@ -36,7 +36,6 @@ parser.add_argument(
 args = parser.parse_args();
  
 NX = args.nx;
-NY = args.ny;
 dir = args.dir;
 cuda = args.cuda;
 remove_old = args.rm;
@@ -52,6 +51,8 @@ for file in files:
     max_frame = max(max_frame,int(strings[1]));
     max_rank = max(max_rank, int(strings[3]));
 
+rem = (args.ny - 2) % (max_rank + 1);
+
 for frame in range(0,max_frame + 1):
 
     tag_comb = '_' + '%03d' % frame + '.bin';
@@ -63,7 +64,12 @@ for frame in range(0,max_frame + 1):
     for rank in range(0,max_rank + 1):
         
         tag = '_' + '%03d' % frame + "_rank_" + "%03d" % rank + '.bin';
-         
+        
+        if (rank < rem):
+            NY = (args.ny - 2)//(max_rank + 1) + 1 + 2;
+        else:
+            NY = (args.ny - 2)//(max_rank + 1) + 2;
+                   
         u_in = dir + '/' + 'u' + tag;
         v_in = dir + "/" + 'v' + tag;
         rho_in = dir + "/" + 'rho' + tag;
@@ -80,7 +86,7 @@ for frame in range(0,max_frame + 1):
             u = u.flatten();
             v = v.flatten();
             rho = rho.flatten();
-        
+            
         # remove top ghost layer
         if (rank == 0):
         

@@ -25,6 +25,7 @@ make -j
 The app will be compiled to the `release` directory as `lbm.host` or `lbm.cuda` depending on if it is an OpenMP or Cuda build.
 
 ## lattice Boltzmann method
+
 The LBM implementation uses the BGK collision operator, D2Q9 quadrature for velocity space, and half-way bounce back for the boundary conditions. For collision-streaming, an A-B pattern is used. That is 9 distriubtions are read from array A, collided, and then streamed to array B. After applying boundary conditions, pointers to the arrays are then swapped. This collision-streaming pattern requires 2x the memory storage but is easy to implement. Details and further references regarding LBM can be found in Kruger's et al. text [[1]](https://link.springer.com/content/pdf/10.1007/978-3-319-44649-3.pdf).
 
 ## Running the 2D lid driven cavity
@@ -73,13 +74,6 @@ Use the `ffmpeg` library to generate the GIF animation
 ffmpeg -v 0 -i img_%03d.png -vf palettegen -y palette.png
 ffmpeg -v 0 -framerate 10 -loop 0 -i img_%03d.png -i palette.png -lavfi paletteuse -y out.gif
 ```
-## Cuda-aware MPI
-
-An distributed GPU program will require device-to-host and host-to-device memory copies in order to avoid invalid memory accesses. However, if multiple GPUs are on a single compute node, then a Cuda-aware MPI implementation will allow you to bypass the memory copies with a cheaper direct Peer-to-Peer (P2P) transfer. This not only results in a higher bandwidth but also reduces code complexity and results in cleaner code. For more details, see the articles below
-
-https://devblogs.nvidia.com/introduction-cuda-aware-mpi/
-
-https://kose-y.github.io/blog/2017/12/installing-cuda-aware-mpi/nvidia-smi
 
 ## Performance 
 
@@ -146,6 +140,17 @@ END KOKKOS PROFILING REPORT.
 ```
 ### Shared Memory
 
+The table below summarizes shared memory performance of the code for different hardware as the domain size `NxN` is varied. The data is reported in Millions of Lattices Updates per Second (MLUPs). The columns `32T, 16T ... 1T` correspond to a dual socket E5-2670 system and indicate how many threads were used. For this dual socket system, the following mpirun cmd was used
+
+```
+mpirun -N 1 -bind-to none -x OMP_NUM_THREADS=$num_threads -x OMP_PROC_BIND=spread -x OMP_PLACES=threads $app $arg1 $arg2 ...
+```
+
+whereas for the single GPU systems, the mpirun cmd was
+
+```
+mpirun -N 1 $app $arg1 $arg2
+```
 
 | N    | GTX Titan X | ½ Tesla K80 | Tesla V100 | 32T           | 16T           | 8T           | 4T           | 2T           |           1T |
 |:----:|:-----------:|:-----------:|:----------:|:-------------:|:-------------:|:------------:|:------------:|:------------:|:------------:|
@@ -160,9 +165,17 @@ END KOKKOS PROFILING REPORT.
 
 ### Distributed Memory
 
-### Cost
-How much would the above pretty animation cost you if you didn't have free access to a GPU? Well, a p2.xlarge Amazon EC2 instance will give you access to half the theoretical bandwidth of single K80 GPU (i.e., `~240 GB/s`) for `$0.9/hr` on demand pricing. Using a `2048x2048` lattice, testing shows a p2.xlarge instance can update approximately `885M` lattice sites per second i.e., `25M` LBM steps would cost you around $30 and ~1.4 days of compute time.
+#### Cuda-aware MPI
 
-On the other hand, a p3.2xlarge instance (single V100 GPU) will run you `$3.06/hr` and can update approximately `4.7B` lattice sites per second i.e., `25M` LBM steps would cost you $19 and ~6.2 hrs of compute time.
+An distributed GPU program will require device-to-host and host-to-device memory copies in order to avoid invalid memory accesses. However, if multiple GPUs are on a single compute node, then a Cuda-aware MPI implementation will allow you to bypass the memory copies with a cheaper direct Peer-to-Peer (P2P) transfer. This not only results in a higher bandwidth but also reduces code complexity and results in cleaner code. For more details, see the articles below
+
+https://devblogs.nvidia.com/introduction-cuda-aware-mpi/
+
+https://kose-y.github.io/blog/2017/12/installing-cuda-aware-mpi/
+
+### Cost
+How much would the previous pretty animation cost you if you didn't have free access to a GPU? Well, a `p2.xlarge` Amazon EC2 instance gives access to half the theoretical bandwidth of single K80 GPU (i.e., `~240 GB/s`) for `$0.9/hr` on demand pricing. On a `2048x2048` lattice, testing shows a p2.xlarge instance delivers `885 MLUPs` i.e., `25M` LBM steps would cost you around $30 and ~1.4 days of compute time.
+
+On the other hand, a `p3.2xlarge` instance (single V100 GPU) will run you `$3.06/hr` and delivers `4.7BLUPs`, i.e., `25M` LBM steps would cost you $19 and ~6.2 hrs of compute time.
 
 

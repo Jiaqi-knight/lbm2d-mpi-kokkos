@@ -42,13 +42,17 @@ int main(int narg, char *arg[]) {
     params.nu = params.u_lid * double(params.ny - 2) / params.re;
     params.tau = 3. * params.nu + 0.5;
 
-    int tmp = ((params.ny - 2) / params.num_proc + 2);
     int nx = params.nx;
-    int ny = tmp;
+    int tmp = (params.ny - 2) / params.num_proc;
+    int rem = (params.ny - 2) % params.num_proc;
 
-    if (params.rank == 0) {
-      ny = params.ny - (tmp - 2) * (params.num_proc - 1);
+    // distribute remainder as evenly as possible
+    if (params.rank < rem) {
+      tmp += 1;
     }
+
+    // add ghost layers;
+    int ny = tmp + 2;
 
     int buff_size = nx * 3;
 
@@ -169,7 +173,9 @@ int main(int narg, char *arg[]) {
       // output macroscopic variables
       if ((step + 1) % params.output_rate == 0) {
 
-        printf("...output step = %i, rank = %i\n", step + 1, params.rank);
+        if (params.rank == 0){
+          printf("...output step = %i\n", step + 1);
+        }
 
         // deep copy from device to host
         Kokkos::deep_copy(h_u, u);
