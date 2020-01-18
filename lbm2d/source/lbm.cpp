@@ -115,7 +115,6 @@ int main(int narg, char *arg[]) {
           rank_below = params.num_proc - 1;
         }
 
-
         // TODO if MPI w/ CPUs, don't launch any OpenMP threads
         Kokkos::parallel_for("populate_send_buffers",range_1d(1, nx - 1), populate_send_buffers(fB, fT_send, fB_send, ny));
 
@@ -144,6 +143,7 @@ int main(int narg, char *arg[]) {
       }
 
       time_comm += timer2.seconds();
+      timer2.reset();
 
       // distributions are updated, compute macroscopic and do steady state check
       if ((step + 1) % params.output_rate == 0) {
