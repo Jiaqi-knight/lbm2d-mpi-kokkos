@@ -5,6 +5,7 @@
 #include "functors.h"
 #include "params.h"
 #include "output.h"
+#include "timer.h"
 
 void update(DistributionField fB, DistributionField fA, ScalarField u, ScalarField v, ScalarField rho, Params &params, const int step);
 
@@ -87,9 +88,8 @@ int main(int narg, char *arg[]) {
     printf("Solving lid driven cavity (rank = %i of %i, Re = %.2e, tau = %.2e, domain [%i x %i] , RAM (MB) = %.1f)...\n", params.rank + 1, params.num_proc, params.re, params.tau,
         ny - 2, nx - 2, (2. * 9. + 3.) * 8. * double(ny - 2) * double (nx-2) / (1024. * 1024.));
 
-    Kokkos::Timer timer;
-
-    double time_comm = 0.0;
+    Timer timer;
+    std::chrono::duration<long double> time_mpi(0);
 
     int step = 0;
     int converged = 0;
@@ -99,7 +99,7 @@ int main(int narg, char *arg[]) {
       // collide-stream-bounceback
       update(fB, fA, u, v, rho, params, step);
 
-      Kokkos::Timer timer2;
+      Timer timer_mpi;
 
       // MPI calls
       if (params.num_proc > 1) {
@@ -142,7 +142,7 @@ int main(int narg, char *arg[]) {
         }
       }
 
-      time_comm += timer2.seconds();
+      time_mpi += timer_mpi.seconds();
 
       // distributions are updated, compute macroscopic and do steady state check
       if ((step + 1) % params.output_rate == 0) {
@@ -192,13 +192,14 @@ int main(int narg, char *arg[]) {
       step += 1;
     }
 
-    double time = timer.seconds();
+    long double dt = timer.seconds().count();
+    long double dt_mpi = time_mpi.count();
 
     double site_updates = double(nx - 2) * double(ny - 2) * double(step) / (1000. * 1000.);
-    double msus = site_updates / time;
+    double msus = site_updates / double(dt);
     double bandwidth = msus * 1000. * 1000. * 2. * 9. * 8. / (1024. * 1024. * 1024.);
 
-    printf("rank = %i, MLUPS = %.1f, GB/s = %.1f, comm_time/total_time = %.3e\n", params.rank, msus, bandwidth, time_comm / time);
+    printf("rank = %i, MLUPS = %.1f, GB/s = %.1f, time_mpi/tot_time = %.3Le\n", params.rank, msus, bandwidth, dt_mpi / dt);
 
     if (converged && params.rank == 0) {
       printf("Solution converged to steady state tolerance of %.3e\n", params.tol);
