@@ -143,7 +143,6 @@ int main(int narg, char *arg[]) {
       }
 
       time_comm += timer2.seconds();
-      timer2.reset();
 
       // distributions are updated, compute macroscopic and do steady state check
       if ((step + 1) % params.output_rate == 0) {
