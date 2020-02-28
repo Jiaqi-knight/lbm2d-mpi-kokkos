@@ -3,9 +3,9 @@
 FOLDER=.
 KOKKOS_PATH= ../../Kokkos/kokkos
 KOKKOS_DEVICES = OpenMP
-#KOKKOS_USE_TPLS = hwloc
+KOKKOS_USE_TPLS = hwloc
 KOKKOS_OPTIONS="disable_deprecated_code"
-#HWLOC_PATH=/usr/include/hwloc
+HWLOC_PATH=/usr/include/hwloc
 MPICC?=mpicxx
 
 SRC_PATH = $(FOLDER)/source

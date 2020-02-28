@@ -154,14 +154,14 @@ mpirun -N 1 $app $arg1 $arg2
 
 | N    | GTX Titan X | ½ Tesla K80 | Tesla V100 | 32T           | 16T           | 8T           | 4T           | 2T           |           1T |
 |:----:|:-----------:|:-----------:|:----------:|:-------------:|:-------------:|:------------:|:------------:|:------------:|:------------:|
-| 64   | 0           | 94          |    168     | 50            | 78\.6         | 77\.8        | 58\.8        | 40\.9        | 32\.2        |
-| 128  | 354         | 274         |    703     | 176           | 194           | 134          | 79\.5        | 44\.7        | 33\.3        |
+| 64   | 0           | 98          |    168     | 50            | 78\.6         | 77\.8        | 58\.8        | 40\.9        | 32\.2        |
+| 128  | 354         | 268         |    703     | 176           | 194           | 134          | 79\.5        | 44\.7        | 33\.3        |
 | 256  | 985         | 565         |    2668    | 371           | 288           | 167          | 88\.6        | 46\.1        | 30\.9        |
 | 512  | 1360        | 789         |    3714    | 523           | 309           | 165          | 85\.4        | 41\.6        | 29\.9        |
-| 1024 | 1360        | 886         |    4326    | 310           | 279           | 152          | 77\.8        | 39\.5        | 28\.6        |
-| 2048 | 1380        | 885         |    4696    | 309           | 282           | 153          | 76\.3        | 38\.4        | 26\.8        |
-| 4096 | 1340        | 857         |    4628    | 216           | 268           | 147          | 73\.5        | 37\.2        | 26           |
-| 8192 | 1290        | 648         |    4770    | 143           | 186           | 128          | 65\.1        | 35\.3        | 25\.6        |
+| 1024 | 1360        | 884         |    4326    | 310           | 279           | 152          | 77\.8        | 39\.5        | 28\.6        |
+| 2048 | 1380        | 936         |    4696    | 309           | 282           | 153          | 76\.3        | 38\.4        | 26\.8        |
+| 4096 | 1340        | 912         |    4628    | 216           | 268           | 147          | 73\.5        | 37\.2        | 26           |
+| 8192 | 1290        | 894         |    4770    | 143           | 186           | 128          | 65\.1        | 35\.3        | 25\.6        |
 
 ### Distributed Memory
 
@@ -172,6 +172,19 @@ An distributed GPU program will require device-to-host and host-to-device memory
 https://devblogs.nvidia.com/introduction-cuda-aware-mpi/
 
 https://kose-y.github.io/blog/2017/12/installing-cuda-aware-mpi/
+
+The table below summarizes the performance on two different Amazon EC2 instances. Specifically, `p2.8xlarge` for up to 4 Nvidia K80 GPUs at `$7.2/hr` on demand pricing and `p3.8xlarge` for up to 4 Nvidia V100 GPUs at `$12.24/hr`. Note that the K80 has 2 physical GPUs.
+
+| N    | 4 x K80 | 2 x K80 | 1 x K80 | ½ K80 | 4 x V100 | 3 x V100 | 2 x V100 | 1 x V100 |
+|------|---------|---------|---------|-------|----------|----------|----------|----------|
+| 64   | N/A     | N/A     | N/A     | 98    | N/A      | N/A      | N/A      | 168      |
+| 128  | N/A     | N/A     | N/A     | 268   | N/A      | N/A      | N/A      | 703      |
+| 256  | 740.8   | 650.5   | 563     | 565   | N/A      | N/A      | N/A      | 2668     |
+| 512  | 2125    | 1660    | 1132    | 789   | 3796     | 4320     | 3672     | 3714     |
+| 1024 | 4324    | 2719    | 1541    | 884   | 9751     | 8006     | 6583     | 4326     |
+| 2048 | 5866    | 3272    | 1723    | 936   | 14366    | 11847    | 8138     | 4696     |
+| 4096 | 6183    | 3395    | 1847    | 912   | 17447    | 12658    | 8988.5   | 4628     |
+| 8192 | 6588    | 3548    | 1795    | 894   | 17055    | 13630    | 9072     | 4770     |
 
 ### Cost
 How much would the previous pretty animation cost you if you didn't have free access to a GPU? Well, a `p2.xlarge` Amazon EC2 instance gives access to half the theoretical bandwidth of single K80 GPU (i.e., `~240 GB/s`) for `$0.9/hr` on demand pricing. On a `2048x2048` lattice, testing shows a p2.xlarge instance delivers `885 MLUPs` i.e., `25M` LBM steps would cost you around $30 and ~1.4 days of compute time.

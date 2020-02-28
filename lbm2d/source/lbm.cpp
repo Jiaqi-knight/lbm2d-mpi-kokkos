@@ -89,7 +89,9 @@ int main(int narg, char *arg[]) {
         ny - 2, nx - 2, (2. * 9. + 3.) * 8. * double(ny - 2) * double (nx-2) / (1024. * 1024.));
 
     Timer timer;
-    std::chrono::duration<long double> time_mpi(0);
+    //Timer timer_mpi;
+    //std::chrono::duration<long double> time_mpi(0);
+    //TODO not sure why timing the messaging is off? need to double check
 
     int step = 0;
     int converged = 0;
@@ -99,7 +101,7 @@ int main(int narg, char *arg[]) {
       // collide-stream-bounceback
       update(fB, fA, u, v, rho, params, step);
 
-      Timer timer_mpi;
+      //timer_mpi.reset();
 
       // MPI calls
       if (params.num_proc > 1) {
@@ -142,7 +144,7 @@ int main(int narg, char *arg[]) {
         }
       }
 
-      time_mpi += timer_mpi.seconds();
+      //time_mpi += timer_mpi.seconds();
 
       // distributions are updated, compute macroscopic and do steady state check
       if ((step + 1) % params.output_rate == 0) {
@@ -193,13 +195,13 @@ int main(int narg, char *arg[]) {
     }
 
     long double dt = timer.seconds().count();
-    long double dt_mpi = time_mpi.count();
+    //long double dt_mpi = time_mpi.count();
 
     double site_updates = double(nx - 2) * double(ny - 2) * double(step) / (1000. * 1000.);
     double msus = site_updates / double(dt);
     double bandwidth = msus * 1000. * 1000. * 2. * 9. * 8. / (1024. * 1024. * 1024.);
 
-    printf("rank = %i, MLUPS = %.1f, GB/s = %.1f, time_mpi/tot_time = %.3Le\n", params.rank, msus, bandwidth, dt_mpi / dt);
+    printf("rank = %i, MLUPS = %.1f, GB/s = %.1f\n", params.rank, msus, bandwidth);
 
     if (converged && params.rank == 0) {
       printf("Solution converged to steady state tolerance of %.3e\n", params.tol);

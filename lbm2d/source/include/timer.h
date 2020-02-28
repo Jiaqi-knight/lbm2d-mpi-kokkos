@@ -20,6 +20,10 @@ struct Timer
     std::chrono::duration<long double> seconds(){
       return std::chrono::duration<long double>(std::chrono::steady_clock::now() - start);
     }
+
+    void reset(){
+      start = std::chrono::steady_clock::now();
+    }
 	~Timer(){}
 private:
     std::chrono::_V2::steady_clock::time_point start;
